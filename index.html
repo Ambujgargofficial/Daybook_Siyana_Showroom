@@ -257,7 +257,7 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxusBrtulvE_udehL5lv8Da9mbfwahw8OPCDCdNf7XA_octVA_vdokLFgFHyjwkBSYZ/exec';
         let udharData=[],advanceData=[],cashData=[],todayData=[];
 
-        document.getElementById('pinForm').addEventListener('submit',function(e){e.preventDefault();if(document.getElementById('pinInput').value==='0208'){document.getElementById('pinScreen').classList.add('hidden');document.body.classList.remove('overflow-hidden');fetchAllData();}else{document.getElementById('pinError').classList.remove('hidden');}});
+        document.getElementById('pinForm').addEventListener('submit',function(e){e.preventDefault();if(document.getElementById('pinInput').value==='0105'){document.getElementById('pinScreen').classList.add('hidden');document.body.classList.remove('overflow-hidden');fetchAllData();}else{document.getElementById('pinError').classList.remove('hidden');}});
 
         function switchTab(t){
             ['sectionReceived','sectionExpense','sectionToday','sectionUdhar','sectionAdvance','sectionCashBook'].forEach(s=>document.getElementById(s).classList.add('hidden'));
