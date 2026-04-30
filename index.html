@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daybook 2.0 Siyana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 700; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.8); }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        button { transition: all 0.2s ease-in-out; }
+        th, td { white-space: nowrap; }
+    </style>
+</head>
+<body class="min-h-screen pb-12 overflow-hidden" id="mainBody">
+
+    <!-- PIN SCREEN -->
+    <div id="pinScreen" class="fixed inset-0 bg-slate-900 z-[100] flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><i class="fas fa-lock text-2xl"></i></div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">App Locked</h2>
+            <form id="pinForm" class="space-y-4">
+                <input type="password" id="pinInput" class="w-full text-center text-2xl tracking-[0.5em] font-bold px-4 py-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20" placeholder="••••" maxlength="4" required inputmode="numeric">
+                <p id="pinError" class="text-rose-500 text-xs font-bold hidden">Incorrect PIN.</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg">Unlock App</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white border-b sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-wallet text-blue-600"></i> Rajebabu Daybook Showrom</h1>
+            <button onclick="fetchAllData()" class="text-blue-600 bg-blue-50 p-2 rounded-full hover:bg-blue-100 transition-all focus:outline-none"><i class="fas fa-sync" id="syncIcon"></i></button>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="bg-white border-b sticky top-[61px] z-40 overflow-x-auto">
+        <div class="flex text-center min-w-max md:min-w-0">
+            <button onclick="switchTab('received')" id="tabBtnReceived" class="px-4 py-3 text-sm font-semibold text-slate-500 tab-active">Received</button>
+            <button onclick="switchTab('expense')" id="tabBtnExpense" class="px-4 py-3 text-sm font-semibold text-slate-500">Expense</button>
+            <button onclick="switchTab('today')" id="tabBtnToday" class="px-4 py-3 text-sm font-semibold text-slate-500">Today</button>
+            <button onclick="switchTab('udhar')" id="tabBtnUdhar" class="px-4 py-3 text-sm font-semibold text-slate-500">Udhar Ledger</button>
+            <button onclick="switchTab('advance')" id="tabBtnAdvance" class="px-4 py-3 text-sm font-semibold text-slate-500">Advance Ledger</button>
+            <button onclick="switchTab('cashbook')" id="tabBtnCashBook" class="px-4 py-3 text-sm font-semibold text-slate-500">Cash Book</button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 mt-6">
+        <div id="contentGrid" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- RECEIVED -->
+            <section id="sectionReceived" class="space-y-4">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-emerald-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Payment Received</h2>
+                    <form id="formReceived" class="space-y-4">
+                        <input type="hidden" name="sheetName" value="Received">
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                                <select name="category" id="receivedCategory" onchange="handleCategoryChange(this.value)" class="w-full px-4 py-2 rounded-lg border border-slate-200 outline-none bg-white focus:ring-2 focus:ring-emerald-500">
+                                    <option value="Customer">Customer</option>
+                                    <option value="Insurance">Insurance</option>
+                                    <option value="Other">Other</option>
+                                    <option value="Customer Advance">Customer Advance</option>
+                                    <option value="Customer Pending">Customer Pending</option>
+                                </select>
+                            </div>
+                            
+                            <div id="advanceListContainer" class="hidden bg-green-50 p-3 rounded-lg border border-green-200">
+                                <label class="block text-sm font-bold text-green-700 mb-1">Adjust Advance</label>
+                                <select id="advanceCustomerList" onchange="autoFillFromAdvance(this)" class="w-full px-4 py-2 rounded-lg border border-green-300 bg-white"><option value="">-- Select Record --</option></select>
+                                <div id="advBalanceNote" class="text-[10px] mt-1 text-green-600 font-bold uppercase"></div>
+                            </div>
+                            
+                            <div id="pendingUdharContainer" class="hidden bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <label class="block text-sm font-bold text-blue-700 mb-1">Settle Udhar</label>
+                                <select id="pendingCustomerList" onchange="autoFillFromUdhar(this)" class="w-full px-4 py-2 rounded-lg border border-blue-300 bg-white"><option value="">-- Select Record --</option></select>
+                                <div id="udharBalanceNote" class="text-[10px] mt-1 text-blue-600 font-bold uppercase"></div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Name <span class="text-rose-500">*</span></label>
+                                    <input type="text" id="receivedParticular" name="particular" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500" placeholder="Enter Name">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Challan / Reg No. <span class="text-rose-500">*</span></label>
+                                    <input type="text" id="challanNo" name="challanNo" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500" placeholder="Challan/Reg">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Cash</label>
+                                <input type="number" name="cashReceived" class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-emerald-500" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Bank</label>
+                                <input type="number" name="bankReceived" class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-emerald-500" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Paytm</label>
+                                <input type="number" name="paytm" class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-emerald-500" placeholder="0">
+                            </div>
+                            <div id="udharGivenBox">
+                                <label class="block text-xs font-bold text-rose-600 mb-1 uppercase tracking-wider">Udhar Given</label>
+                                <input type="number" id="udharInput" name="udharPayment" class="w-full px-3 py-2 rounded-lg border border-rose-200 bg-rose-50/30 focus:ring-1 focus:ring-rose-500" placeholder="0">
+                            </div>
+                            <div id="advanceAdjustBox" class="hidden">
+                                <label class="block text-xs font-bold text-green-600 mb-1 uppercase tracking-wider">Adv. Adjusted</label>
+                                <input type="number" id="advAdjustInput" name="advanceAdjusted" class="w-full px-3 py-2 rounded-lg border border-green-200 bg-green-50/30" placeholder="0">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
+                            <textarea name="remarks" id="receivedRemarks" rows="2" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500" placeholder="Enter Remarks..."></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg">Save Entry</button>
+                        <div id="loadingRec" class="hidden text-center text-sm text-slate-500">Saving...</div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- EXPENSE -->
+            <section id="sectionExpense" class="hidden space-y-4">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-rose-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Expense Section</h2>
+                    <form id="formExpense" class="space-y-4">
+                        <input type="hidden" name="sheetName" value="Expenses">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                            <select name="category" required class="w-full px-4 py-2 rounded-lg border border-slate-200 outline-none bg-white">
+                                <option>Bank Deposit</option><option>Office Expenses</option><option>Repair Expenses</option>
+                                <option>Staff Advance</option><option>Customer</option><option>Staff Refreshment</option>
+                                <option>OutDoor Expense</option><option>Rent Expense</option><option>Travelling Expense</option>
+                                <option>Misc Advance</option><option>RTO Expense</option><option>Misc Expenses</option>
+                                <option>Salary and Incentive Expenses</option><option>Purchase Other</option><option>Freight Expense</option>
+                                <option>Advertisement Exp</option><option>Stationary Expense</option><option>Telephone & Internet Exp</option>
+                                <option>Courier Expense</option><option>Advance From Customer</option><option>Electricity Expense</option>
+                                <option>Customer Welfare Expenses</option><option>Staff Welfare Expenses</option><option>Insurance Expenses</option>
+                                <option>Fright Non-gst</option><option>Pitty Cash A/C Deposit</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                            <input type="text" name="particular" required class="w-full px-4 py-2 rounded-lg border border-slate-200" placeholder="Description">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                                <input type="number" name="amount" required class="w-full px-4 py-2 rounded-lg border border-slate-200" placeholder="Amount">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">In-charge Name</label>
+                                <input type="text" name="formHead" class="w-full px-4 py-2 rounded-lg border border-slate-200" placeholder="In-charge Name">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl shadow-lg">Save Expense</button>
+                        <div id="loadingExp" class="hidden text-center text-sm text-slate-500">Saving...</div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- TODAY -->
+            <section id="sectionToday" class="hidden space-y-4 col-span-1 md:col-span-2">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-indigo-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Today's Transactions</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-indigo-50 border-b border-indigo-200">
+                                <tr>
+                                    <th class="p-2">Type</th>
+                                    <th class="p-2">Name</th>
+                                    <th class="p-2">Ref</th>
+                                    <th class="p-2 text-right">Cash</th>
+                                    <th class="p-2 text-right">Bank</th>
+                                    <th class="p-2 text-right">Paytm</th>
+                                    <th class="p-2 text-right">Udhar</th>
+                                    <th class="p-2 text-right">Adv</th>
+                                    <th class="p-2">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody id="todayListBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- LEDGERS -->
+            <section id="sectionUdhar" class="hidden space-y-4 col-span-1 md:col-span-2">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-blue-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Udhar Ledger</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-blue-50 border-b border-blue-200">
+                                <tr>
+                                    <th class="p-2">Date</th>
+                                    <th class="p-2">Customer & Ref</th>
+                                    <th class="p-2 text-right">Balance</th>
+                                    <th class="p-2">Last Remark</th>
+                                </tr>
+                            </thead>
+                            <tbody id="udharListBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="sectionAdvance" class="hidden space-y-4 col-span-1 md:col-span-2">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-green-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Advance Ledger</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-green-50 border-b border-green-200">
+                                <tr>
+                                    <th class="p-2">Date</th>
+                                    <th class="p-2">Customer & Ref</th>
+                                    <th class="p-2 text-right">Balance</th>
+                                    <th class="p-2">Last Remark</th>
+                                </tr>
+                            </thead>
+                            <tbody id="advanceListBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="sectionCashBook" class="hidden space-y-4 col-span-1 md:col-span-2">
+                <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-t-orange-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Cash Book</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead class="bg-orange-50">
+                                <tr>
+                                    <th class="p-2">Date</th>
+                                    <th class="p-2 text-right">Open</th>
+                                    <th class="p-2 text-right">In</th>
+                                    <th class="p-2 text-right">Out</th>
+                                    <th class="p-2 text-right">Close</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cashBookBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzY19NgFyBVGUoONdYGgPoJOgUQd1sshQYmzvLsfi7Ko5DQ5M0nzP7xwHLu1kpUrkY/exec';
+        let udharData=[],advanceData=[],cashData=[],todayData=[];
+
+        document.getElementById('pinForm').addEventListener('submit',function(e){e.preventDefault();if(document.getElementById('pinInput').value==='0208'){document.getElementById('pinScreen').classList.add('hidden');document.body.classList.remove('overflow-hidden');fetchAllData();}else{document.getElementById('pinError').classList.remove('hidden');}});
+
+        function switchTab(t){
+            ['sectionReceived','sectionExpense','sectionToday','sectionUdhar','sectionAdvance','sectionCashBook'].forEach(s=>document.getElementById(s).classList.add('hidden'));
+            ['tabBtnReceived','tabBtnExpense','tabBtnToday','tabBtnUdhar','tabBtnAdvance','tabBtnCashBook'].forEach(b=>{
+                document.getElementById(b).classList.remove('tab-active','text-blue-600');
+                document.getElementById(b).classList.add('text-slate-500');
+            });
+            const sMap={'received':'sectionReceived','expense':'sectionExpense','today':'sectionToday','udhar':'sectionUdhar','advance':'sectionAdvance','cashbook':'sectionCashBook'};
+            const bMap={'received':'tabBtnReceived','expense':'tabBtnExpense','today':'tabBtnToday','udhar':'tabBtnUdhar','advance':'tabBtnAdvance','cashbook':'tabBtnCashBook'};
+            document.getElementById(sMap[t]).classList.remove('hidden');
+            document.getElementById(bMap[t]).classList.add('tab-active','text-blue-600');
+            document.getElementById(bMap[t]).classList.remove('text-slate-500');
+            if(t!=='received'&&t!=='expense')fetchAllData();
+        }
+
+        async function fetchAllData(){
+            document.getElementById('syncIcon').classList.add('fa-spin');
+            try{
+                const[u,a,c,t]=await Promise.all([
+                    fetch(`${SCRIPT_URL}?action=getUdharList&t=${Date.now()}`),
+                    fetch(`${SCRIPT_URL}?action=getAdvanceList&t=${Date.now()}`),
+                    fetch(`${SCRIPT_URL}?action=getCashReport&t=${Date.now()}`),
+                    fetch(`${SCRIPT_URL}?action=getTodayTransactions&t=${Date.now()}`)
+                ]);
+                udharData=await u.json();advanceData=await a.json();cashData=await c.json();todayData=await t.json();
+                renderLists();
+            }catch(e){console.error(e);}
+            document.getElementById('syncIcon').classList.remove('fa-spin');
+        }
+
+        function renderLists(){
+            document.getElementById('udharListBody').innerHTML=udharData.map(i=>`<tr class="border-b hover:bg-slate-50"><td class="p-2 whitespace-nowrap text-xs text-slate-500">${i.firstDate||'-'}</td><td class="py-2 px-2"><b>${i.particular}</b><br><span class="text-[10px] text-slate-500">${i.challan}</span></td><td class="text-right text-rose-600 font-bold">₹${i.balance}</td><td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.lastRemark||'-'}</td></tr>`).join('')||'<tr><td class="p-4 text-center">No Data</td></tr>';
+            
+            document.getElementById('advanceListBody').innerHTML=advanceData.map(i=>`<tr class="border-b hover:bg-slate-50"><td class="p-2 whitespace-nowrap text-xs text-slate-500">${i.firstDate||'-'}</td><td class="py-2 px-2"><b>${i.particular}</b><br><span class="text-[10px] text-slate-500">${i.challan}</span></td><td class="text-right text-green-600 font-bold">₹${i.balance}</td><td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.lastRemark||'-'}</td></tr>`).join('')||'<tr><td class="p-4 text-center">No Data</td></tr>';
+            
+            document.getElementById('cashBookBody').innerHTML=cashData.map(i=>`<tr class="border-b"><td class="p-2">${i.date}</td><td class="text-right text-slate-500">${i.opening}</td><td class="text-right text-green-600">${i.cashIn}</td><td class="text-right text-rose-600">${i.cashOut}</td><td class="text-right font-bold">${i.closing}</td></tr>`).join('');
+            document.getElementById('todayListBody').innerHTML=todayData.map(i=>`<tr class="border-b hover:bg-indigo-50"><td class="p-2"><span class="px-2 py-1 text-[10px] rounded-full ${i.type==='Received'?'bg-green-100 text-green-800':'bg-rose-100 text-rose-800'}">${i.type}</span></td><td class="p-2 font-medium">${i.particular}</td><td class="p-2 text-xs">${i.ref||'-'}</td><td class="p-2 text-right text-green-600">${i.cash||'-'}</td><td class="p-2 text-right text-blue-600">${i.bank||'-'}</td><td class="p-2 text-right text-sky-500">${i.paytm||'-'}</td><td class="p-2 text-right text-rose-500">${i.udhar||'-'}</td><td class="p-2 text-right text-amber-500">${i.advance||'-'}</td><td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.remark||'-'}</td></tr>`).join('');
+            
+            const uSelect=document.getElementById('pendingCustomerList');
+            const aSelect=document.getElementById('advanceCustomerList');
+            uSelect.innerHTML='<option value="">-- Select Record --</option>'+udharData.map(i=>`<option value="${i.particular}" data-challan="${i.challan}" data-balance="${i.balance}">${i.particular} (${i.challan} | ₹${i.balance})</option>`).join('');
+            aSelect.innerHTML='<option value="">-- Select Record --</option>'+advanceData.map(i=>`<option value="${i.particular}" data-challan="${i.challan}" data-balance="${i.balance}">${i.particular} (${i.challan} | ₹${i.balance})</option>`).join('');
+        }
+
+        function handleCategoryChange(val){
+            document.getElementById('udharGivenBox').classList.remove('hidden');
+            document.getElementById('advanceAdjustBox').classList.add('hidden');
+            document.getElementById('pendingUdharContainer').classList.add('hidden');
+            document.getElementById('advanceListContainer').classList.add('hidden');
+            
+            const n=document.getElementById('receivedParticular'); n.value=''; n.readOnly=false; n.classList.remove('bg-gray-100');
+            const c=document.getElementById('challanNo'); c.value=''; c.readOnly=false; c.classList.remove('bg-gray-100');
+            document.getElementById('receivedRemarks').value='';
+            
+            if(val==='Customer Advance'){ document.getElementById('udharGivenBox').classList.add('hidden'); }
+            else if(val==='Customer Pending'){ document.getElementById('pendingUdharContainer').classList.remove('hidden'); document.getElementById('udharGivenBox').classList.add('hidden'); }
+            else if(val==='Customer'){ document.getElementById('advanceAdjustBox').classList.remove('hidden'); document.getElementById('advanceListContainer').classList.remove('hidden'); }
+        }
+
+        function autoFillFromUdhar(sel){
+            const opt=sel.options[sel.selectedIndex];
+            if(opt.value){
+                document.getElementById('receivedParticular').value=opt.value;
+                document.getElementById('challanNo').value=opt.dataset.challan; // Can be edited
+                document.getElementById('receivedRemarks').value=`Settlement for ${opt.value} {LINK:${opt.value}|${opt.dataset.challan}}`;
+                document.getElementById('udharBalanceNote').innerText=`Pending: ₹${opt.dataset.balance}`;
+            }
+        }
+
+        function autoFillFromAdvance(sel){
+            const opt=sel.options[sel.selectedIndex];
+            if(opt.value){
+                document.getElementById('receivedParticular').value=opt.value;
+                document.getElementById('challanNo').value=opt.dataset.challan; // Can be edited
+                document.getElementById('advAdjustInput').value=opt.dataset.balance;
+                document.getElementById('receivedRemarks').value=`Adjusted from Advance {LINK:${opt.value}|${opt.dataset.challan}}`;
+                document.getElementById('advBalanceNote').innerText=`Available: ₹${opt.dataset.balance}`;
+            }
+        }
+
+        async function submitForm(e,isRec){
+            e.preventDefault();
+            const loader=document.getElementById(isRec?'loadingRec':'loadingExp');
+            loader.classList.remove('hidden');
+            const fd=new FormData(e.target); const data=Object.fromEntries(fd.entries());
+            data.timestamp=new Date().toLocaleString();
+            if(isRec && !data.refNo) data.refNo = data.challanNo;
+
+            // Auto-append amount & date to remarks for tracking history in the remark field itself
+            if (isRec) {
+                const cat = data.category;
+                const dateStr = new Date().toLocaleDateString('en-IN'); // Indian format
+                
+                if (cat === 'Customer Pending') {
+                    const totalPaid = (Number(data.cashReceived) || 0) + (Number(data.bankReceived) || 0) + (Number(data.paytm) || 0);
+                    if (totalPaid > 0) {
+                        data.remarks += ` | Rec: ₹${totalPaid} on ${dateStr}`;
+                    }
+                } else if (cat === 'Customer' && (Number(data.advanceAdjusted) || 0) > 0) {
+                    data.remarks += ` | Adj: ₹${data.advanceAdjusted} on ${dateStr}`;
+                }
+            }
+
+            try{
+                await fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(data)});
+                alert("Saved!"); e.target.reset(); if(isRec)handleCategoryChange('Customer'); fetchAllData();
+            }catch(e){alert("Error");}
+            loader.classList.add('hidden');
+        }
+        document.getElementById('formReceived').onsubmit=e=>submitForm(e,true);
+        document.getElementById('formExpense').onsubmit=e=>submitForm(e,false);
+    </script>
+</body>
+</html>
