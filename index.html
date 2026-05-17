@@ -12,7 +12,11 @@
         .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 700; }
         .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.8); }
         .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
         button { transition: all 0.2s ease-in-out; }
         th, td { white-space: nowrap; }
     </style>
@@ -20,7 +24,7 @@
 <body class="min-h-screen pb-12 overflow-hidden" id="mainBody">
 
     <!-- PIN SCREEN -->
-    <div id="pinScreen" class="fixed inset-0 bg-slate-900 z-[100] flex flex-col items-center justify-center p-4">
+    <div id="pinScreen" class="fixed inset-0 bg-slate-900 z-[200] flex flex-col items-center justify-center p-4">
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><i class="fas fa-lock text-2xl"></i></div>
             <h2 class="text-2xl font-bold text-slate-800 mb-2">App Locked</h2>
@@ -29,6 +33,49 @@
                 <p id="pinError" class="text-rose-500 text-xs font-bold hidden">Incorrect PIN.</p>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg">Unlock App</button>
             </form>
+        </div>
+    </div>
+
+    <!-- DRILL DOWN MODAL -->
+    <div id="drillDownModal" class="fixed inset-0 bg-slate-900/60 z-[100] hidden items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target === this) closeDrillDown()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden animate-fade-in-up relative">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-list-alt text-blue-500"></i>
+                    <span id="drillDownTitle">Transactions Date</span>
+                </h3>
+                <button onclick="closeDrillDown()" class="text-slate-400 hover:text-rose-500 transition-colors focus:outline-none">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-0 overflow-y-auto flex-1 relative bg-white">
+                <div id="drillDownLoading" class="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10 hidden">
+                    <div class="loading-spinner mb-2"></div>
+                    <span class="text-sm font-medium text-slate-500">Fetching Records...</span>
+                </div>
+                
+                <div class="overflow-x-auto p-4">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-indigo-50 border-b border-indigo-200">
+                            <tr>
+                                <th class="p-2">Type</th>
+                                <th class="p-2">Name</th>
+                                <th class="p-2">Ref</th>
+                                <th class="p-2 text-right">Cash</th>
+                                <th class="p-2 text-right">Bank</th>
+                                <th class="p-2 text-right">Paytm</th>
+                                <th class="p-2 text-right">Udhar</th>
+                                <th class="p-2 text-right">Adv</th>
+                                <th class="p-2">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drillDownListBody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -236,13 +283,14 @@
                     <h2 class="text-lg font-bold text-slate-800 mb-4">Cash Book</h2>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm border-collapse">
-                            <thead class="bg-orange-50">
+                            <thead class="bg-orange-50 border-b border-orange-200">
                                 <tr>
                                     <th class="p-2">Date</th>
                                     <th class="p-2 text-right">Open</th>
                                     <th class="p-2 text-right">In</th>
-                                    <th class="p-2 text-right">Out</th>
-                                    <th class="p-2 text-right">Close</th>
+                                    <th class="p-2 text-right">Out (Exp)</th>
+                                    <th class="p-2 text-right">Bank Deposit</th>
+                                    <th class="p-2 text-right font-bold">Close</th>
                                 </tr>
                             </thead>
                             <tbody id="cashBookBody"></tbody>
@@ -254,10 +302,19 @@
     </main>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxusBrtulvE_udehL5lv8Da9mbfwahw8OPCDCdNf7XA_octVA_vdokLFgFHyjwkBSYZ/exec';
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzE2mqrgOVgH5aq2vONKW3zyNVpW3M4shr8wBnZJVhICoH7D-61m-fotpXwTPhNpOfTgA/exec';
         let udharData=[],advanceData=[],cashData=[],todayData=[];
 
-        document.getElementById('pinForm').addEventListener('submit',function(e){e.preventDefault();if(document.getElementById('pinInput').value==='0105'){document.getElementById('pinScreen').classList.add('hidden');document.body.classList.remove('overflow-hidden');fetchAllData();}else{document.getElementById('pinError').classList.remove('hidden');}});
+        document.getElementById('pinForm').addEventListener('submit',function(e){
+            e.preventDefault();
+            if(document.getElementById('pinInput').value==='0105'){
+                document.getElementById('pinScreen').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                fetchAllData();
+            } else {
+                document.getElementById('pinError').classList.remove('hidden');
+            }
+        });
 
         function switchTab(t){
             ['sectionReceived','sectionExpense','sectionToday','sectionUdhar','sectionAdvance','sectionCashBook'].forEach(s=>document.getElementById(s).classList.add('hidden'));
@@ -270,7 +327,7 @@
             document.getElementById(sMap[t]).classList.remove('hidden');
             document.getElementById(bMap[t]).classList.add('tab-active','text-blue-600');
             document.getElementById(bMap[t]).classList.remove('text-slate-500');
-            if(t!=='received'&&t!=='expense')fetchAllData();
+            if(t!=='received'&&t!=='expense') fetchAllData();
         }
 
         async function fetchAllData(){
@@ -293,13 +350,71 @@
             
             document.getElementById('advanceListBody').innerHTML=advanceData.map(i=>`<tr class="border-b hover:bg-slate-50"><td class="p-2 whitespace-nowrap text-xs text-slate-500">${i.firstDate||'-'}</td><td class="py-2 px-2"><b>${i.particular}</b><br><span class="text-[10px] text-slate-500">${i.challan}</span></td><td class="text-right text-green-600 font-bold">₹${i.balance}</td><td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.lastRemark||'-'}</td></tr>`).join('')||'<tr><td class="p-4 text-center">No Data</td></tr>';
             
-            document.getElementById('cashBookBody').innerHTML=cashData.map(i=>`<tr class="border-b"><td class="p-2">${i.date}</td><td class="text-right text-slate-500">${i.opening}</td><td class="text-right text-green-600">${i.cashIn}</td><td class="text-right text-rose-600">${i.cashOut}</td><td class="text-right font-bold">${i.closing}</td></tr>`).join('');
+            // Cash Book rendering updated to include clickable dates for drill-down functionality
+            document.getElementById('cashBookBody').innerHTML=cashData.map(i=>`
+                <tr class="border-b hover:bg-orange-50 transition-colors">
+                    <td class="p-2 whitespace-nowrap">
+                        <button onclick="viewDaybookDetails('${i.date}')" class="font-semibold text-blue-600 hover:text-blue-800 hover:underline decoration-blue-300 underline-offset-4 flex items-center gap-1 focus:outline-none">
+                            <i class="fas fa-calendar-day text-[10px]"></i> ${i.date}
+                        </button>
+                    </td>
+                    <td class="text-right text-slate-500 font-medium">₹ ${i.opening}</td>
+                    <td class="text-right text-emerald-600 font-bold">₹ ${i.cashIn}</td>
+                    <td class="text-right text-rose-600 font-bold">₹ ${i.cashOut}</td>
+                    <td class="text-right text-blue-600 font-bold">₹ ${i.cashDeposit || 0}</td>
+                    <td class="text-right text-slate-800 font-bold bg-orange-50/50">₹ ${i.closing}</td>
+                </tr>
+            `).join('');
+
             document.getElementById('todayListBody').innerHTML=todayData.map(i=>`<tr class="border-b hover:bg-indigo-50"><td class="p-2"><span class="px-2 py-1 text-[10px] rounded-full ${i.type==='Received'?'bg-green-100 text-green-800':'bg-rose-100 text-rose-800'}">${i.type}</span></td><td class="p-2 font-medium">${i.particular}</td><td class="p-2 text-xs">${i.ref||'-'}</td><td class="p-2 text-right text-green-600">${i.cash||'-'}</td><td class="p-2 text-right text-blue-600">${i.bank||'-'}</td><td class="p-2 text-right text-sky-500">${i.paytm||'-'}</td><td class="p-2 text-right text-rose-500">${i.udhar||'-'}</td><td class="p-2 text-right text-amber-500">${i.advance||'-'}</td><td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.remark||'-'}</td></tr>`).join('');
             
             const uSelect=document.getElementById('pendingCustomerList');
             const aSelect=document.getElementById('advanceCustomerList');
             uSelect.innerHTML='<option value="">-- Select Record --</option>'+udharData.map(i=>`<option value="${i.particular}" data-challan="${i.challan}" data-balance="${i.balance}">${i.particular} (${i.challan} | ₹${i.balance})</option>`).join('');
             aSelect.innerHTML='<option value="">-- Select Record --</option>'+advanceData.map(i=>`<option value="${i.particular}" data-challan="${i.challan}" data-balance="${i.balance}">${i.particular} (${i.challan} | ₹${i.balance})</option>`).join('');
+        }
+
+        // NEW: Function to open Drill Down Modal
+        async function viewDaybookDetails(dateStr) {
+            document.getElementById('drillDownModal').classList.remove('hidden');
+            document.getElementById('drillDownModal').classList.add('flex');
+            document.getElementById('drillDownTitle').innerText = `Transactions for ${dateStr}`;
+            document.getElementById('drillDownLoading').classList.remove('hidden');
+            document.getElementById('drillDownListBody').innerHTML = ''; 
+
+            try {
+                // Fetch specific date data directly from backend
+                const res = await fetch(`${SCRIPT_URL}?action=getTransactionsByDate&date=${dateStr}&t=${Date.now()}`);
+                const data = await res.json();
+
+                if (data.length === 0) {
+                     document.getElementById('drillDownListBody').innerHTML = '<tr><td colspan="9" class="p-6 text-center text-slate-500 italic"><i class="fas fa-folder-open mb-2 text-2xl opacity-50 block"></i>No transactions found for this date.</td></tr>';
+                } else {
+                     document.getElementById('drillDownListBody').innerHTML = data.map(i=>`
+                        <tr class="border-b hover:bg-slate-50 transition-colors">
+                            <td class="p-2"><span class="px-2 py-1 text-[10px] rounded-full font-bold tracking-wide ${i.type==='Received'?'bg-emerald-100 text-emerald-800':'bg-rose-100 text-rose-800'}">${i.type}</span></td>
+                            <td class="p-2 font-bold text-slate-700">${i.particular}</td>
+                            <td class="p-2 text-xs text-slate-500">${i.ref||'-'}</td>
+                            <td class="p-2 text-right text-emerald-600 font-semibold">${i.cash||'-'}</td>
+                            <td class="p-2 text-right text-blue-600">${i.bank||'-'}</td>
+                            <td class="p-2 text-right text-sky-500">${i.paytm||'-'}</td>
+                            <td class="p-2 text-right text-rose-500">${i.udhar||'-'}</td>
+                            <td class="p-2 text-right text-amber-500">${i.advance||'-'}</td>
+                            <td class="p-2 text-xs italic text-slate-500 whitespace-normal max-w-[150px] break-words">${i.remark||'-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('drillDownListBody').innerHTML = '<tr><td colspan="9" class="p-4 text-center text-rose-500 font-bold"><i class="fas fa-exclamation-triangle"></i> Error loading data. Check internet connection.</td></tr>';
+            }
+            document.getElementById('drillDownLoading').classList.add('hidden');
+        }
+
+        // NEW: Function to close the Drill Down Modal
+        function closeDrillDown() {
+            document.getElementById('drillDownModal').classList.add('hidden');
+            document.getElementById('drillDownModal').classList.remove('flex');
         }
 
         function handleCategoryChange(val){
@@ -321,7 +436,7 @@
             const opt=sel.options[sel.selectedIndex];
             if(opt.value){
                 document.getElementById('receivedParticular').value=opt.value;
-                document.getElementById('challanNo').value=opt.dataset.challan; // Can be edited
+                document.getElementById('challanNo').value=opt.dataset.challan; 
                 document.getElementById('receivedRemarks').value=`Settlement for ${opt.value} {LINK:${opt.value}|${opt.dataset.challan}}`;
                 document.getElementById('udharBalanceNote').innerText=`Pending: ₹${opt.dataset.balance}`;
             }
@@ -331,7 +446,7 @@
             const opt=sel.options[sel.selectedIndex];
             if(opt.value){
                 document.getElementById('receivedParticular').value=opt.value;
-                document.getElementById('challanNo').value=opt.dataset.challan; // Can be edited
+                document.getElementById('challanNo').value=opt.dataset.challan; 
                 document.getElementById('advAdjustInput').value=opt.dataset.balance;
                 document.getElementById('receivedRemarks').value=`Adjusted from Advance {LINK:${opt.value}|${opt.dataset.challan}}`;
                 document.getElementById('advBalanceNote').innerText=`Available: ₹${opt.dataset.balance}`;
@@ -346,10 +461,9 @@
             data.timestamp=new Date().toLocaleString();
             if(isRec && !data.refNo) data.refNo = data.challanNo;
 
-            // Auto-append amount & date to remarks for tracking history in the remark field itself
             if (isRec) {
                 const cat = data.category;
-                const dateStr = new Date().toLocaleDateString('en-IN'); // Indian format
+                const dateStr = new Date().toLocaleDateString('en-IN'); 
                 
                 if (cat === 'Customer Pending') {
                     const totalPaid = (Number(data.cashReceived) || 0) + (Number(data.bankReceived) || 0) + (Number(data.paytm) || 0);
